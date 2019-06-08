@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Recit</string>
+    <string name="app_desc">Image Recognition</string>
+    <string name="recit_desc">Recit will help you recognize and classify images.</string>
+    <string name="contentDesc">Image</string>
+    <string name="withCamera">With Camera</string>
+    <string name="withImage">Use Image</string>
+</resources>
