@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".MainActivity">
+    <android.support.v7.widget.Toolbar
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/red"
+            android:theme="?attr/actionBarTheme">
+        <ImageView
+                android:src="@drawable/logo"
+                android:layout_width="wrap_content"
+                android:layout_height="fill_parent"
+                android:maxHeight="25dp"
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/contentDesc"/>
+    </android.support.v7.widget.Toolbar>
+    <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="25dp"
+            android:paddingTop="5dp">
+
+        <TextView
+                android:text="@string/selectImg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAlignment="center"
+                android:textSize="20sp"
+                android:layout_weight="1"
+                android:id="@+id/imageSelection"/>
+        <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:id="@+id/recResult"
+                android:textSize="25sp"
+                android:textColor="@color/red"
+                android:textAlignment="center"
+                android:gravity="center"
+                android:layout_weight="3"/>
+        <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_image_black_24dp"
+                android:id="@+id/imageToRec"
+                android:layout_weight="5"
+                android:contentDescription="@string/contentDesc"
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter"/>
+        <Button
+                android:text="@string/chooseImg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:id="@+id/selectImage"
+                android:background="@color/red"
+                android:textColor="@color/white"
+                android:layout_weight="0.3"
+                android:textSize="20sp"/>
+    </LinearLayout>
+</LinearLayout>
