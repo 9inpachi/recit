@@ -16,11 +16,14 @@ import kotlinx.android.synthetic.main.activity_camera.*
 import kotlinx.android.synthetic.main.activity_camera.view.*
 import java.io.IOException
 import android.R.attr.bitmap
+import android.content.res.AssetManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
 import android.os.Handler
 import android.os.Looper
-
-
-
+import android.widget.Toast
+import java.lang.IllegalStateException
 
 
 class CameraActivity : Activity() {
@@ -34,7 +37,7 @@ class CameraActivity : Activity() {
 
         mCamera = getCameraInstance()
         mPreview = mCamera?.let {
-            CameraPreview(this, it)
+            CameraPreview(this, it, assets, cameraResult)
         }
         if(!baseContext.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)){
             cameraResult.text = "Unable to use camera"
@@ -61,25 +64,33 @@ class CameraActivity : Activity() {
         }
     }
 
-    class CameraPreview(context: Context, private val mCamera: Camera) : SurfaceView(context), SurfaceHolder.Callback, Camera.PreviewCallback {
+    class CameraPreview(context: Context, private val mCamera: Camera, assets: AssetManager, cameraResult: TextView) : SurfaceView(context), SurfaceHolder.Callback, Camera.PreviewCallback
+    {
 
         var isProcessingF = false
-        var mHandler = Handler(Looper.getMainLooper())
+        val classifier = ImageClassifier(assets)
+        var imageFormat: Int? = null
 
-        override fun onPreviewFrame(data: ByteArray?, camera: Camera?) {
-            if(isProcessingF){
-                Log.i("Skipping Frame", "Skipping frame because of processing")
-                return
-            }else{
-                mHandler.post(ClassifyImage)
-            }
-        }
-
-        private val ClassifyImage = Runnable {
-            isProcessingF = true
-            val resultArr =
-            Log.i("DOING PROCESSING", "DOING PROCESSING")
-            isProcessingF = false
+        override fun onPreviewFrame(data: ByteArray, camera: Camera?) {
+            if(imageFormat == ImageFormat.NV21)
+                if(isProcessingF){
+                    Log.i("Skipping Frame", "Skipping frame because of processing")
+                    return
+                }else{
+                    Log.i("STEP 1", data.toString())
+                    isProcessingF = true
+                    try{
+                        Log.i("STEP 2", data.inputStream().toString())
+                        Log.i("STEP 3", BitmapFactory.decodeStream(data.inputStream()).toString())
+//                        val bitMap = BitmapFactory.decodeStream(data.inputStream())
+//                        val resultArr = classifier.recognizeImage(bitMap)
+//                        Log.i("IMAGE DATA", data.toString())
+                        //cameraResult.text = resultArr.joinToString("\n")
+                    }catch (e: IllegalStateException){
+                        Log.i("Exception", e.toString())
+                    }
+                    isProcessingF = false
+                }
         }
 
         private val mHolder: SurfaceHolder = holder.apply {
@@ -95,6 +106,7 @@ class CameraActivity : Activity() {
             mCamera.apply {
                 try {
                     setPreviewDisplay(holder)
+                    imageFormat = this.parameters.previewFormat
                     startPreview()
                 } catch (e: IOException) {
                     Log.d(TAG, "Error setting camera preview: ${e.message}")
