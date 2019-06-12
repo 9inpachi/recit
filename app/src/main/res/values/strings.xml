@@ -8,4 +8,5 @@
     <string name="imageSeems">Well, seems like its a</string>
     <string name="chooseImg">Choose Image</string>
     <string name="selectImg">Select an image</string>
+    <string name="result">Result will appear here</string>
 </resources>
