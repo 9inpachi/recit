@@ -1,8 +1,11 @@
 package com.recit
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.Camera
 import android.support.v7.app.AppCompatActivity
@@ -11,188 +14,248 @@ import android.util.Log
 import android.widget.FrameLayout
 import kotlinx.android.synthetic.main.activity_camera.*
 import android.graphics.*
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraDevice.TEMPLATE_PREVIEW
+import android.hardware.camera2.CameraManager
+import android.media.Image
+import android.media.ImageReader
+import android.net.Uri
+import android.os.Handler
+import android.provider.Settings
 import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import java.io.IOException
 import android.view.*
+import android.widget.Toast
+import java.lang.Runnable
+import java.util.*
 
 
 class CameraActivity : AppCompatActivity() {
-    private var mCamera: Camera? = null
-    private var mPreview: CameraPreview? = null
 
     var isProcessingF = false
-    val CAMERA_BACK = 0
-    val CAMERA_FRONT = 1
-    var cameraId = CAMERA_BACK
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_camera)
 
-        checkPermission()
-
-        mCamera = getCameraInstance(cameraId)
-        setCameraPreview()
-        if(!baseContext.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA)){
-            cameraResult.text = "Unable to use camera"
-        }
-
-        cameraChange.setOnClickListener{
-            if(cameraId == CAMERA_FRONT){
-                cameraId = CAMERA_BACK
-                mCamera?.release()
-                mCamera = getCameraInstance(cameraId)
-                setCameraPreview()
-            } else if(cameraId == CAMERA_BACK){
-                cameraId = CAMERA_FRONT
-                mCamera?.release()
-                mCamera = getCameraInstance(cameraId)
-                setCameraPreview()
-            }
-        }
-
-        val classifier = ImageClassifier(assets)
-
-        mCamera?.setPreviewCallback{data, camera->
-            onPreviewCallBack(data, camera, classifier)
-        }
-    }
-
-    private fun checkPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        mCamera?.release() // release the camera immediately on pause event
-    }
-
-    override fun onResume() {
-        super.onResume()
-        mCamera = getCameraInstance(cameraId)
-        setCameraPreview()
-    }
-
-    fun getCameraInstance(cameraId: Int): Camera? {
-        if(mCamera != null){
-            mCamera?.release()
-        }
-        return try {
-            Camera.open(cameraId) // attempt to get a Camera instance
-        } catch (e: Exception) {
-            // Camera is not available (in use or does not exist)
-            null // returns null if camera is unavailable
-        }
-    }
-
-    fun setCameraPreview(){
-        mPreview = mCamera?.let {
-            CameraPreview(this, it)
-        }
-        mPreview.also {
-            val preview: FrameLayout = cameraPreview
-            preview.addView(it, 0)
-        }
-        val classifier = ImageClassifier(assets)
-        mCamera?.setPreviewCallback{data, camera->
-            onPreviewCallBack(data, camera, classifier)
-        }
-    }
-
-    fun onPreviewCallBack(data: ByteArray, camera: Camera, classifier: ImageClassifier){
-        Log.i("INSIDE", "INSIDE PREVIEW CALLBACK")
-        if(!isProcessingF){
-            isProcessingF = true
-
-            GlobalScope.launch {
-                val parameters = camera!!.parameters
-                val width = parameters.previewSize.width
-                val height = parameters.previewSize.height
-
-                val yuv = YuvImage(data, parameters.previewFormat, width, height, null)
-
-                val out = ByteArrayOutputStream()
-                yuv.compressToJpeg(Rect(0, 0, Keys.INPUT_SIZE, Keys.INPUT_SIZE), 10, out)
-
-                val bytes = out.toByteArray()
-                try{
-                    val bitMap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    val resultArr = classifier.recognizeImage(bitMap)
-                    Log.i("RESULT", resultArr.joinToString ("\n"))
-                    this@CameraActivity.runOnUiThread{
-                        cameraResult.text = resultArr[0].toString()
-                    }
-
-                }catch (e: Exception){
-                    Log.e("Exception", e.toString())
-                }
-                isProcessingF = false
-            }
-        }
-    }
-
-}
-
-class CameraPreview(context: Context, private val mCamera: Camera) : SurfaceView(context), SurfaceHolder.Callback
-{
-
-    private val mHolder: SurfaceHolder = holder.apply {
-        // Install a SurfaceHolder.Callback so we get notified when the
-        // underlying surface is created and destroyed.
-        addCallback(this@CameraPreview)
-        // deprecated setting, but required on Android versions prior to 3.0
-        setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS)
-    }
-
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        // The Surface has been created, now tell the camera where to draw the preview.
-
-    }
-
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        // empty. Take care of releasing the Camera preview in your activity.
-    }
-
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
-        // If your preview can change or rotate, take care of those events here.
-        // Make sure to stop the preview before resizing or reformatting it.
-        mCamera.apply {
-            try {
-                mCamera.setDisplayOrientation(90)
-                setPreviewDisplay(holder)
-                startPreview()
-            } catch (e: IOException) {
-                Log.d(ContentValues.TAG, "Error setting camera preview: ${e.message}")
-            }
-        }
-        if (mHolder.surface == null) {
-            // preview surface does not exist
+        if (!CameraPermissionHelper.hasCameraPermission(this)) {
+            CameraPermissionHelper.requestCameraPermission(this)
             return
         }
 
-        // stop preview before making changes
-        try {
-            mCamera.stopPreview()
-        } catch (e: Exception) {
-            // ignore: tried to stop a non-existent preview
+        cameraPreview.holder.addCallback(surfaceReadyCallback)
+    }
+
+    object CameraPermissionHelper {
+        private const val CAMERA_PERMISSION_CODE = 0
+        private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
+
+        /** Check to see we have the necessary permissions for this app.  */
+        fun hasCameraPermission(activity: Activity): Boolean {
+            return ContextCompat.checkSelfPermission(activity, CAMERA_PERMISSION) == PackageManager.PERMISSION_GRANTED
         }
 
-        // set preview size and make any resize, rotate or
-        // reformatting changes here
+        /** Check to see we have the necessary permissions for this app, and ask for them if we don't.  */
+        fun requestCameraPermission(activity: Activity) {
+            ActivityCompat.requestPermissions(
+                activity, arrayOf(CAMERA_PERMISSION), CAMERA_PERMISSION_CODE)
+        }
 
-        // start preview with new settings
-        mCamera.apply {
-            try {
-                setPreviewDisplay(mHolder)
-                startPreview()
-            } catch (e: Exception) {
-                Log.d(ContentValues.TAG, "Error starting camera preview: ${e.message}")
+        /** Check to see if we need to show the rationale for this permission.  */
+        fun shouldShowRequestPermissionRationale(activity: Activity): Boolean {
+            return ActivityCompat.shouldShowRequestPermissionRationale(activity, CAMERA_PERMISSION)
+        }
+
+        /** Launch Application Setting to grant permission.  */
+        fun launchPermissionSettings(activity: Activity) {
+            val intent = Intent()
+            intent.action = Settings.ACTION_ACCESSIBILITY_SETTINGS
+            intent.data = Uri.fromParts("package", activity.packageName, null)
+            activity.startActivity(intent)
+        }
+    }
+
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (!CameraPermissionHelper.hasCameraPermission(this)) {
+            Toast.makeText(this, "Camera permission is needed to run this application", Toast.LENGTH_LONG)
+                .show()
+            if (!CameraPermissionHelper.shouldShowRequestPermissionRationale(this)) {
+                // Permission denied with checking "Do not ask again".
+                CameraPermissionHelper.launchPermissionSettings(this)
+            }
+            finish()
+        }
+
+        recreate()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startCameraSession() {
+        val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        if (cameraManager.cameraIdList.isEmpty()) {
+            // no cameras
+            return
+        }
+        val firstCamera = cameraManager.cameraIdList[0]
+        Log.i("CHECKING CAMERA", cameraManager.cameraIdList.joinToString("\n"))
+        cameraManager.openCamera(firstCamera, object: CameraDevice.StateCallback() {
+            override fun onDisconnected(p0: CameraDevice) { }
+            override fun onError(p0: CameraDevice, p1: Int) { }
+
+            override fun onOpened(cameraDevice: CameraDevice) {
+                // use the camera
+                val cameraCharacteristics =    cameraManager.getCameraCharacteristics(cameraDevice.id)
+
+                cameraCharacteristics[CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP]?.let { streamConfigurationMap ->
+                    streamConfigurationMap.getOutputSizes(ImageFormat.YUV_420_888)?.let { yuvSizes ->
+                        val previewSize = yuvSizes.last()
+                        val displayRotation = windowManager.defaultDisplay.rotation
+                        val swappedDimensions = areDimensionsSwapped(displayRotation, cameraCharacteristics)
+                        val rotatedPreviewWidth = if (swappedDimensions) previewSize.height else previewSize.width
+                        val rotatedPreviewHeight = if (swappedDimensions) previewSize.width else previewSize.height
+
+                        cameraPreview.holder.setFixedSize(rotatedPreviewWidth, rotatedPreviewHeight)
+
+
+
+                        // Configure Image Reader
+                        val imageReader = ImageReader.newInstance(rotatedPreviewWidth, rotatedPreviewWidth, ImageFormat.YUV_420_888, 2)
+
+                        val recordingSurface = imageReader.surface
+                        val previewSurface = cameraPreview.holder.surface
+                        val previewRequestBuilder =   cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                            .apply {
+                                this.addTarget(previewSurface)
+                                this.addTarget(recordingSurface)
+                            }
+
+                        val captureCallback = object : CameraCaptureSession.StateCallback()
+                        {
+                            override fun onConfigureFailed(session: CameraCaptureSession) {}
+
+                            override fun onConfigured(session: CameraCaptureSession) {
+                                session.setRepeatingRequest(
+                                    previewRequestBuilder.build(),
+                                    object: CameraCaptureSession.CaptureCallback() { },
+                                    Handler { true }
+                                )
+                            }
+                        }
+
+                        val classifier = ImageClassifier(assets)
+
+                        imageReader.setOnImageAvailableListener({
+                            // do something
+                            try{
+                                if(it != null){
+                                    val image = it.acquireLatestImage()
+                                    previewCallback(image, classifier)
+                                }
+                            }catch(e: Exception){
+                                Log.e("EXCEPTION", "ON READING IMAGE $e")
+                            }
+                        }, null)
+
+                        cameraDevice.createCaptureSession(Arrays.asList(previewSurface, recordingSurface), captureCallback, Handler { true })
+
+
+                    }
+
+                }
+            }
+        }, Handler { true })
+
+
+    }
+
+    private fun areDimensionsSwapped(displayRotation: Int, cameraCharacteristics: CameraCharacteristics): Boolean {
+        var swappedDimensions = false
+        when (displayRotation) {
+            Surface.ROTATION_0, Surface.ROTATION_180 -> {
+                if (cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) == 90 || cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) == 270) {
+                    swappedDimensions = true
+                }
+            }
+            Surface.ROTATION_90, Surface.ROTATION_270 -> {
+                if (cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) == 0 || cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) == 180) {
+                    swappedDimensions = true
+                }
+            }
+            else -> {
+                // invalid display rotation
+            }
+        }
+        return swappedDimensions
+    }
+
+    val surfaceReadyCallback = object: SurfaceHolder.Callback {
+        override fun surfaceChanged(p0: SurfaceHolder?, p1: Int, p2: Int, p3: Int) {
+        }
+        override fun surfaceDestroyed(p0: SurfaceHolder?) { }
+
+        override fun surfaceCreated(p0: SurfaceHolder?) {
+            startCameraSession()
+        }
+    }
+
+    fun previewCallback(image: Image, classifier: ImageClassifier){
+
+        if(isProcessingF){
+            image.close()
+        }else{
+            isProcessingF = true
+            //Inside detection
+            GlobalScope.launch {
+
+                try{
+                    var bytes = YUV_420_888toNV21(image)
+                    val yuv = YuvImage(bytes, ImageFormat.NV21, image.width, image.height, null)
+                    val out = ByteArrayOutputStream()
+                    yuv.compressToJpeg(Rect(0, 0, image.width, image.height), 10, out)
+                    bytes = out.toByteArray()
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+                    val resultArr = classifier.recognizeImage(bitmap)
+
+                    this@CameraActivity.runOnUiThread{
+                        cameraResult1.text = resultArr[0].toString()
+                        cameraResult2.text = resultArr[1].toString()
+                        cameraResult3.text = resultArr[2].toString()
+                    }
+
+                }catch(e: Exception){
+                    Log.e("EXCEPTION", "$e")
+                }
+                isProcessingF = false
+                image.close()
             }
         }
     }
+
+    private fun YUV_420_888toNV21(image: Image): ByteArray {
+        val nv21: ByteArray
+        val yBuffer = image.planes[0].buffer
+        val uBuffer = image.planes[1].buffer
+        val vBuffer = image.planes[2].buffer
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        nv21 = ByteArray(ySize + uSize + vSize)
+
+        //U and V are swapped
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
+
+        return nv21
+    }
+
 }
