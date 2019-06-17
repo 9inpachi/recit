@@ -215,12 +215,19 @@ class CameraActivity : AppCompatActivity() {
             GlobalScope.launch {
 
                 try{
+
+//                    val rgbFrameBitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+//                    val croppedBitmap =
+//                        Bitmap.createBitmap(
+//                            Keys.INPUT_SIZE, Keys.INPUT_SIZE, Bitmap.Config.ARGB_8888)
+
                     var bytes = YUV_420_888toNV21(image)
                     val yuv = YuvImage(bytes, ImageFormat.NV21, image.width, image.height, null)
                     val out = ByteArrayOutputStream()
                     yuv.compressToJpeg(Rect(0, 0, image.width, image.height), 10, out)
                     bytes = out.toByteArray()
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+                    var bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+                    bitmap = Bitmap.createScaledBitmap(bitmap, Keys.INPUT_SIZE, Keys.INPUT_SIZE, false)
                     val resultArr = classifier.recognizeImage(bitmap)
 
                     this@CameraActivity.runOnUiThread{
