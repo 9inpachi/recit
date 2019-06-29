@@ -25,9 +25,11 @@ object Keys {
     const val DIM_PIXEL_SIZE = 3
     const val DIM_IMG_SIZE_X = 224
     const val DIM_IMG_SIZE_Y = 224
+    const val IMAGE_WIDTH = 640
+    const val IMAGE_HEIGHT = 640
 }
 
-class ImageClassifier constructor(private val assetManager: AssetManager) {
+class ImageClassifier constructor(assetManager: AssetManager) {
 
     private var interpreter: Interpreter? = null
     private var labelProb: Array<ByteArray>
@@ -48,7 +50,7 @@ class ImageClassifier constructor(private val assetManager: AssetManager) {
         }
         labelProb = Array(1) { ByteArray(labels.size) }
         imgData = ByteBuffer.allocateDirect(Keys.DIM_BATCH_SIZE * Keys.DIM_IMG_SIZE_X * Keys.DIM_IMG_SIZE_Y * Keys.DIM_PIXEL_SIZE)
-        imgData!!.order(ByteOrder.nativeOrder())
+        imgData.order(ByteOrder.nativeOrder())
         try {
             interpreter = Interpreter(loadModelFile(assetManager, Keys.MODEL_PATH))
         } catch (e: Exception) {
@@ -57,16 +59,15 @@ class ImageClassifier constructor(private val assetManager: AssetManager) {
     }
 
     private fun convertBitmapToByteBuffer(bitmap: Bitmap) {
-        if (imgData == null) return
-        imgData!!.rewind()
+        imgData.rewind()
         bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         var pixel = 0
         for (i in 0 until Keys.DIM_IMG_SIZE_X) {
             for (j in 0 until Keys.DIM_IMG_SIZE_Y) {
-                val value = intValues!![pixel++]
-                imgData!!.put((value shr 16 and 0xFF).toByte())
-                imgData!!.put((value shr 8 and 0xFF).toByte())
-                imgData!!.put((value and 0xFF).toByte())
+                val value = intValues[pixel++]
+                imgData.put((value shr 16 and 0xFF).toByte())
+                imgData.put((value shr 8 and 0xFF).toByte())
+                imgData.put((value and 0xFF).toByte())
             }
         }
     }
