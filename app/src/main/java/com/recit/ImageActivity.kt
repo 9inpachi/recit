@@ -47,7 +47,7 @@ class ImageActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == CHOOSE_IMAGE && resultCode == Activity.RESULT_OK)
             try {
-                val stream = contentResolver!!.openInputStream(data!!.getData())
+                val stream = contentResolver!!.openInputStream(data!!.data)
                 if (::photoImage.isInitialized) photoImage.recycle()
                 photoImage = BitmapFactory.decodeStream(stream)
                 photoImage = Bitmap.createScaledBitmap(photoImage, Keys.INPUT_SIZE, Keys.INPUT_SIZE, false)
@@ -63,7 +63,7 @@ class ImageActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         if (requestCode == 0) {
-            if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
                 && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
                 imageToRec.isEnabled = true
             }
